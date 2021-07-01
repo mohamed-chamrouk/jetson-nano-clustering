@@ -4,16 +4,16 @@
 
 This project was made in collaboration with [Télécom SudParis](https://www.telecom-sudparis.eu/) for a cost-efficient solution for machine learning model training.
 
-Although meant to be used with the python library [Pytorch](https://pytorch.org/) and [Horovod](https://horovod.ai/) the cluster can, of course, be adapted for the use of other librairies (although this means that you will have to debug any issue yourself).
+Although meant to be used with the python library [Pytorch](https://pytorch.org/) and [Horovod](https://horovod.ai/) the cluster can, of course, be adapted for the use of other libraries (although this means that you will have to debug any issue yourself).
 
 Now for the cluster, there are two ways though which we explored it :
 - Clustering through MPI : MPI or Message Passing Interface is a standard meant for distributed applications. This standard is here used through Horovod.
     - Benefits : Easy to understand and implement.
-    - Drawbacks : Long configuration time, limitations for ressources.
+    - Drawbacks : Long configuration time, limitations for resources.
 - Clustering through kubernetes : Pretty self-explanatory, kubernetes allows us to create a cluster with a simple architecture of master-workers.
-    - Benefits : Easy to configure, easily scalable, good use of ressources.
+    - Benefits : Easy to configure, easily scalable, good use of resources.
     - Drawbacks : One node is "lost" as a master, configuration can be hard when needing specific libraries.
-    > :warning: Kubernetes isn't meant for this type of usecase. Kubeflow through the MPI Training operator or more simply horovod can be used for that task. We'll see later on how this affects performance compared to the bare-bone solution.
+    > :warning: Kubernetes isn't meant for this type of use case. Kubeflow through the MPI Training operator or more simply horovod can be used for that task. We'll see later on how this affects performance compared to the bare-bone solution.
 <div></div>
 These two ways of clustering will be explored further down with everything needed to make it work under jetson nanos.
 
@@ -33,7 +33,7 @@ Some things to note before getting going full force into installation, configura
 
 Here is our setup for our cluster :
 - 8 jetson nano developer kits
-- 8 high speed sd card (we used 100Mbit/s 128Gb SD Card, but it's a bit overkill. Favor speed/endurance inspite of storage space)
+- 8 high speed sd card (we used 100Mbit/s 128Gb SD Card, but it's a bit overkill. Favor speed/endurance in spite of storage space)
 - 1 gigabit network switch
 - A server for storage (NFS in our case)
 <div></div>
@@ -45,13 +45,13 @@ This is fairly straight forward, there is a [complete guide](https://developer.n
 
 > :information_source: Small optional tip : It's best to configure well your hostnames and password during this step. It's a real hassle figuring things out later on so the sooner the better.
 
-As mentionned in the *Nota Bene* section, you have to do this with every single one of your jetson nanos regardless of the way you choose to setup your cluster.
+As mentioned in the *Nota Bene* section, you have to do this with every single one of your jetson nanos regardless of the way you choose to setup your cluster.
 
 Although simple this part is the one that probably will take you the most amount of time. SD Cards are flash storage, so not terribly fast.
 
 ### Networking
-In our case, every jetson nano had a public IP address making the configuration easier. However it's best practice to have static local adresses for each jetson nano. One way to do that is through routing on (for instance) the nfs server. By setting up a NAT on this server and connecting the switch to it, it will allow each jetson nano to have a local adress while still being able to access internet.
-> Note that this means you need to have two network interfaces on your server (which we didn't have hence the public adresses).
+In our case, every jetson nano had a public IP address making the configuration easier. However it's best practice to have static local addresses for each jetson nano. One way to do that is through routing on (for instance) the nfs server. By setting up a NAT on this server and connecting the switch to it, it will allow each jetson nano to have a local address while still being able to access internet.
+> Note that this means you need to have two network interfaces on your server (which we didn't have hence the public addresses).
 
 ### NFS Server [¹]
 
@@ -95,7 +95,7 @@ So before we get going, we need to choose between one of two ways to go about th
     dd bs=4M if=/dev/sdcard of=/path/to/jetson-nano-clean.img
     dd bs=1M if=/path/to/jetson-nano-clean.img of=/dev/sdcard
     ```
-The second solution is faster only if you can manage to clone everything at the same time. Otherwise the first one might be better.
+The second solution is faster only if you can manage to clone everything at the same time. Otherwise, the first one might be better.
 Note that with the second solution you'll have a permanent 'clean' image stored on your disk for use later on, if you think that'll be useful for you go with the first solution.
 
 ### Installing Pytorch
@@ -139,7 +139,7 @@ pip3 install horovod
 ### Making the 'cluster' work
 For horovod to communicate between all the 'nodes', they need to be able to ssh between one another through their pair of keys. So if you haven't done it already, go back up to the introduction of this part and share the public keys of each one of the board to another.
 
-I've wrote a small bash script to make it easier to test the cluster :
+I've written a small bash script to make it easier to test the cluster :
 ```bash
 #!/bin/bash
 
@@ -161,7 +161,7 @@ fi
 horovodrun -np $2 -H $hosts python3 $1 --epochs 3
 ```
 
->This file needs a little bit of context.
+>This file needs a bit of context.
 Since each 'node' has a dynamic ip and only the nfs server is static (in our case) I need to have a way to figure out which ip each one of my board has.
 >
 >So through a crontab that execute the following script on each board :
@@ -177,7 +177,7 @@ Since each 'node' has a dynamic ip and only the nfs server is static (in our cas
 >```bash
 >/bin/cat /media/nfs/jetson* > /media/nfs/all_ips
 >```
->I can have all of the ips of my boards on a single file that looks like the following :
+>I can have all the ips of my boards on a single file that looks like the following :
 >```
 >jetson0-node:157.159.78.116
 >jetson1-node:157.159.78.118
@@ -202,4 +202,4 @@ It's also interesting to see how the resources of each board is affected by this
 ```bash
 tegrastats | cut -d' ' -f10,14,16,18
 ```
-The first column is the CPU usage accross all 4 cores, the second is the GPU usage, the third the CPU temp and the last the GPU temp.
+The first column is the CPU usage across all 4 cores, the second is the GPU usage, the third the CPU temp and the last the GPU temp.
