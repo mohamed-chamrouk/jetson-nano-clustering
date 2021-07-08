@@ -51,9 +51,29 @@ Although simple this part is the one that probably will take you the most amount
 
 ### Networking
 In our case, every jetson nano had a public IP address making the configuration easier. However it's best practice to have static local addresses for each jetson nano. One way to do that is through routing on (for instance) the nfs server. By setting up a NAT on this server and connecting the switch to it, it will allow each jetson nano to have a local address while still being able to access internet.
-> Note that this means you need to have two network interfaces on your server (which we didn't have hence the public addresses).
 
-### NFS Server [¹]
+If you want to setup NAT routing on your server follow these steps (from [here](https://how-to.fandom.com/wiki/How_to_set_up_a_NAT_router_on_a_Linux-based_computer)) :
+- On the NAT server :
+    - ```bash
+      ip addr add 192.168.0.1/24 dev your_interface
+      ```
+    - ```bash
+      modprobe iptable_nat
+      echo 1 > /proc/sys/net/ipv4/ip_forward
+      iptables -t nat -A POSTROUTING -o your_interface -j MASQUERADE
+      iptables -A FORWARD -i second_interface -j ACCEPT
+      ```
+- On each of the clients :
+    - ```bash
+      ip addr add 192.168.0.x/24 dev your_interface
+      ```
+    - ```bash
+      route add default gw 192.168.0.1/24
+      ```
+    - change `/etc/resolv.conf` to match the one of your server or to the one of your choic.
+
+### NFS Server
+Based on [this guide](https://linuxconfig.org/how-to-set-up-a-nfs-server-on-debian-10-buster).
 
 **Server side** : <div></div>
 Installing the nfs server is done through:
@@ -81,8 +101,6 @@ server_ip_address:/media/nfs	/media/share	nfs	defaults,user,exec	0 0
 server_ip_address:/home/guest	/home/guest	nfs	defaults,user,exec	0 0
 ```
 If they didn't mount right away after saving, execute `sudo mount -a`.
-
-[¹] : Based on [this guide](https://linuxconfig.org/how-to-set-up-a-nfs-server-on-debian-10-buster).
 
 ## MPI 'cluster'
 ### Introduction
@@ -130,6 +148,8 @@ print(torchvision.__version__)
 First of all we need to install some packages to avoid wheel build errors later on :
 ```bash
 sudo apt install python-dev build-essential libssl-dev libffi-dev libxm12-dev libxslt1-dev zlib1g-dev python-pip
+pip3 install -U Cython
+pip3 install -U testresources setuptools
 ```
 and then you should be able to install horovod without any hiccups :
 ```bash
@@ -203,3 +223,131 @@ It's also interesting to see how the resources of each board is affected by this
 tegrastats | cut -d' ' -f10,14,16,18
 ```
 The first column is the CPU usage across all 4 cores, the second is the GPU usage, the third the CPU temp and the last the GPU temp.
+
+## Kubernetes cluster
+
+### Preparing the boards
+The first part of this guide is based on [this guide](https://medium.com/jit-team/building-a-gpu-enabled-kubernets-cluster-for-machine-learning-with-nvidia-jetson-nano-7b67de74172a).
+> :information_source: Here again, it's best pratice and almost necessary to have static ip addresses. Therefore I highly recommend you follow the guide under *Networking* up in the guide.
+
+Once you have done the first boot of every jetson nano we can start installing kubernetes on evry one of them.
+
+First of all, on every board execute the following commands :
+```bash
+sudo systemctl set-default multi-user.target #to disable graphical interface
+sudo nvpmodel -m 0 #high-power mode
+sudo swapoff -a #disable swap, necessary on every reboot
+```
+Next set the `/etc/docker/daemon.json` file to :
+```json
+{
+  “default-runtime”: “nvidia”,
+  “runtimes”: {
+    “nvidia”: {
+      “path”: “nvidia-container-runtime”,
+      “runtimeArgs”: []
+     }
+   }
+}
+```
+And finally :
+```bash
+sudo groupadd docker
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+Before going any further, it's safer testing now the gpu support for docker with the following docker image :
+```bash
+docker run -it jitteam/devicequery ./deviceQuery
+```
+Which should produce an output that ends with :
+```bash
+Driver Version = 10.0, CUDA Runtime Version = 10.0, NumDevs = 1Result = PASS
+```
+### Setting up Kubernetes
+Execute the following commands on every board:
+```bash
+sudo apt-get install apt-transport-https -y
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl kubernetes-cni
+```
+
+### Master node
+
+>:information_source: Note that if you haven't done it yet, you'll probably need to have noted somewhere the ip addresses of each board and its role in the cluster.
+
+<div></div>
+
+Launch the following command on the **sole master node** :
+```bash
+sudo kubeadm init --pod-network-cidr=10.244.10.0/16
+```
+It will produce an output with commands to follow to spread your cluster.
+
+### Finishing the cluster
+
+Once everything has been set up, test your cluster with the command :
+```bash
+kubectl get nodes
+```
+And troubleshoot any eventual issue your cluster may have faced before going on.
+Now name each one of your nodes :
+```bash
+kubectl label node name_of_node1 node-role.kubernetes.io/worker=worker
+kubectl label node name_of_node2 node-role.kubernetes.io/worker=worker
+kubectl label node name_of_node3 node-role.kubernetes.io/worker=worker
+```
+
+### Testing for GPU Support inside the cluster
+
+Now let's create our first pod with the following `gpu-test?yml` file :
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: devicequery
+spec:
+  containers:
+    - name: nvidia
+      image: jitteam/devicequery:latest
+      command: [ "./deviceQuery" ]
+```
+And then type the following commands :
+```bash
+kubectl apply -f gpu-test.yml
+kubectl logs devicequery
+```
+The output should be the same as with the docker image from before, if not troubleshooting is necessary.
+
+### Requesting ressources from multiples nodes
+
+As mentionned before, k8s isn't meant to be used in that kind of application. However that doesn't mean it's impossible or unefficient.
+
+The first thing we'll need to do is to build our docker image with everything we need (we are basically making a container out of our previous environment).
+Conveniently enough, nvidia made available a docker image with cuda, torch and torchvision installed easing our task :
+```docker
+FROM nvcr.io/nvidia/l4t-pytorch:r32.5.0-pth1.7-py3
+RUN apt-get update -y
+RUN apt-get install python3-pip libopenblas-base libopenmpi-dev -y
+RUN DEBIAN_FRONTEND=noninteractive apt-get install libhdf5-serial-dev hdf5-tools libhdf5-dev zlib1g-dev zip libjpeg8-dev liblapack-dev libblas-dev gfortran -y
+RUN DEBIAN_FRONTEND=noninteractive apt-get install python3 python-dev python3-dev build-essential libssl-dev libffi-dev libxml2-dev libxslt1-dev zlib1g-dev python-pip cmake openssh-client openssh-server -yq
+RUN pip3 install -U Cython
+RUN pip3 install -U testresources setuptools
+RUN pip3 install horovod --no-cache-dir
+```
+Now build an image out of this file with :
+```bash
+docker build -t nvidia/torch-horovod -f Dockerfile .
+```
+And run a bash terminal inside of it with :
+```bash
+docker run -ti --rm --runtime nvidia nvidia/torch-horovod
+```
+
+If everything went well you should be able to execute to following commands without any error :
+```
+horovodrun -np 1 python3 -c "import torch; print(torch.cuda.get_device_properties(0))"
+```
