@@ -4,7 +4,7 @@
 
 This project was made in collaboration with [Télécom SudParis](https://www.telecom-sudparis.eu/) for a cost-efficient solution for machine learning model training.
 
-Although meant to be used with the python library [Pytorch](https://pytorch.org/) and [Horovod](https://horovod.ai/) the cluster can, of course, be adapted for the use of other libraries (although this means that you will have to debug any issue yourself).
+Although meant to be used with the python library [Pytorch](https://pytorch.org/), [TensorFlow](www.tensorflow.org) and [Horovod](https://horovod.ai/) the cluster can, of course, be adapted for the use of other libraries (although this means that you will have to debug any issue yourself).
 
 Now for the cluster, there are two ways though which we explored it :
 - Clustering through MPI : MPI or Message Passing Interface is a standard meant for distributed applications. This standard is here used through Horovod.
@@ -144,6 +144,36 @@ print(torch.cuda.get_device_properties(0))
 print(torchvision.__version__)
 ```
 
+### Installing TensorFlow
+
+Full guide available [here](https://docs.nvidia.com/deeplearning/frameworks/install-tf-jetson-platform/index.html).
+
+Install system packages required by TensorFlow:
+```bash
+$ sudo apt-get update
+$ sudo apt-get install libhdf5-serial-dev hdf5-tools libhdf5-dev zlib1g-dev zip libjpeg8-dev liblapack-dev libblas-dev gfortran
+```
+Install and upgrade pip3.
+```bash
+$ sudo apt-get install python3-pip
+$ sudo pip3 install -U pip testresources setuptools==49.6.0 
+```
+Install the Python package dependencies.
+```bash
+$ sudo pip3 install -U numpy==1.19.4 future==0.18.2 mock==3.0.5 h5py==2.10.0 keras_preprocessing==1.1.1 keras_applications==1.0.8 gast==0.2.2 futures protobuf pybind11
+```
+Install tensorflow
+```bash
+$ sudo pip3 install --extra-index-url https://developer.download.nvidia.com/compute/redist/jp/v$JP_VERSION tensorflow==$TF_VERSION+nv$NV_VERSION
+```
+Where:
+- **JP_VERSION**
+  The major and minor version of JetPack you are using, such as 42 for JetPack 4.2.2 or 33 for JetPack 3.3.1.
+- **TF_VERSION**
+  The released version of TensorFlow, for example, 1.13.1.
+- **NV_VERSION**
+  The monthly NVIDIA container version of TensorFlow, for example, 19.01.
+
 ### Installing Horovod
 First of all we need to install some packages to avoid wheel build errors later on :
 ```bash
@@ -153,9 +183,9 @@ pip3 install -U testresources setuptools
 ```
 and then you should be able to install horovod without any hiccups :
 ```bash
-pip3 install horovod
+pip3 install horovod[tensorflow,pytorch] --no-deps
 ```
-
+> The '--no-deps' option is here so that we avoid to download unnecessary dependencies. However if your install fails try removing the option.
 ### Making the 'cluster' work
 For horovod to communicate between all the 'nodes', they need to be able to ssh between one another through their pair of keys. So if you haven't done it already, go back up to the introduction of this part and share the public keys of each one of the board to another.
 
@@ -181,30 +211,32 @@ fi
 horovodrun -np $2 -H $hosts python3 $1 --epochs 3
 ```
 
->This file needs a bit of context.
+>>This file needs a bit of context.
 Since each 'node' has a dynamic ip and only the nfs server is static (in our case) I need to have a way to figure out which ip each one of my board has.
->
->So through a crontab that execute the following script on each board :
->```bash
->#!/bin/bash
->
->ip=$(/sbin/ifconfig eth0 | grep 'inet ' | cut -d' ' -f10)
->hostname=$(hostname)
->
->echo $hostname:$ip > /media/share/$hostname
->```
->and a simple crontab on the server that execute the following command :
->```bash
->/bin/cat /media/nfs/jetson* > /media/nfs/all_ips
->```
->I can have all the ips of my boards on a single file that looks like the following :
->```
->jetson0-node:157.159.78.116
->jetson1-node:157.159.78.118
->jetson2-node:157.159.78.117
->jetson3-node:157.159.78.119
->```
->File that I go through in the script `run.sh`.
+>>
+>>So through a crontab that execute the following script on each board :
+>>```bash
+>>#!/bin/bash
+>>
+>>ip=$(/sbin/ifconfig eth0 | grep 'inet ' | cut -d' ' -f10)
+>>hostname=$(hostname)
+>>
+>>echo $hostname:$ip > /media/share/$hostname
+>>```
+>>and a simple crontab on the server that execute the following command :
+>>```bash
+>>/bin/cat /media/nfs/jetson* > /media/nfs/all_ips
+>>```
+>>I can have all the ips of my boards on a single file that looks like the following :
+>>```
+>>jetson0-node:157.159.78.116
+>>jetson1-node:157.159.78.118
+>>jetson2-node:157.159.78.117
+>>jetson3-node:157.159.78.119
+>>```
+>>File that I go through in the script `run.sh`.
+><div></div>
+>:stop_sign: This no longer holds true. The current architecture uses static local ip addresses through a NAT. However we kept the same file and syntax to make it easier to add boards in the future.
 
 The first argument of the script is the number of 'node' I want the python script to be distributed on. The second one is the python file.
 

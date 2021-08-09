@@ -1,0 +1,11 @@
+[Unit]
+Description=Service to launch what's necessary for data capture to the grafana web server.
+
+[Service]
+User=root
+WorkingDirectory=/media/share/stat_scripts
+ExecStart=/bin/bash /media/share/stat_scripts/stat_launcher.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
