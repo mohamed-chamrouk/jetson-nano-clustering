@@ -151,3 +151,11 @@ If a commandline needs to be executed for each board in the cluster, the followi
 ```bash
 tmux  new-session -s cluster "ssh jetson@192.168.0.100" \;  split-window "ssh jetson@192.168.0.104" \; split-window -h "ssh jetson@192.168.0.106" \; select-pane -t 0 \; split-window -h "ssh jetson@192.168.0.102" \; select-pane -t 0 \; split-window -h "ssh jetson@192.168.0.101" \; select-pane -t 2 \; split-window -h "ssh jetson@192.168.0.103" \; select-pane -t 4 \; split-window -h "ssh jetson@192.168.0.105" \; select-pane -t 6 \; split-window -h "ssh jetson@192.168.0.107" \; setw synchronize-panes on
 ```
+
+If the following message appears `duplicate session: cluster', a session has already been created with that name so either change the name or try to attach to it to see if it already has what you're looking for with :
+```bash
+tumx attach -t cluster
+```
+If you don't want to have all the panes synchronize either remove `setw synchronize-panes on` at the end of the command-line or press `Ctrl+B` then `:` and type `setw synchronize-panes off`.
+
+For a deeper look at tmux I recommend this [cheat sheet](https://gist.github.com/andreyvit/2921703).

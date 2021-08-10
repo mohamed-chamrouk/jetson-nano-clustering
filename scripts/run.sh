@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [[ $# -ne 2 ]]; then
+if [[ $# -lt 2 ]]; then
 	echo "Wrong number of arguments"
 fi
 

@@ -256,6 +256,17 @@ tegrastats | cut -d' ' -f10,14,16,18
 ```
 The first column is the CPU usage across all 4 cores, the second is the GPU usage, the third the CPU temp and the last the GPU temp.
 
+### Running command-lines as another user
+
+Since all the librairies have been installed for the `jetson` user, every command needs to be launched as this user. To do so type the following command :
+```bash
+sudo runuser -l jetson -c 'yourcommand'
+```
+>NB : Since the command is launched as another user it's best to specify every necessary path as absolute path, for instance :
+>```bash
+>sudo runuser -l jetson -c 'cd /media/share/horovod/ ; /media/share/horovod/run.sh /media/share/horovod/horovod_mnist.py 1'
+>```
+
 ## Kubernetes cluster
 
 ### Preparing the boards
