@@ -267,7 +267,7 @@ sudo runuser -l jetson -c 'yourcommand'
 >sudo runuser -l jetson -c 'cd /media/share/horovod/ ; /media/share/horovod/run.sh /media/share/horovod/horovod_mnist.py 1'
 >```
 
-## Kubernetes cluster
+## Kubernetes cluster (incomplete)
 
 ### Preparing the boards
 The first part of this guide is based on [this guide](https://medium.com/jit-team/building-a-gpu-enabled-kubernets-cluster-for-machine-learning-with-nvidia-jetson-nano-7b67de74172a).
@@ -394,3 +394,5 @@ If everything went well you should be able to execute to following commands with
 ```
 horovodrun -np 1 python3 -c "import torch; print(torch.cuda.get_device_properties(0))"
 ```
+
+*to be continued...*
