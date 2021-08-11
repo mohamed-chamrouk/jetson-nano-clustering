@@ -95,6 +95,8 @@ All in all here is a table summing up all the previously seen metrics :
 
 | Library | Number of cards | GPU Usage | CPU Usage | Power usage |
 |-|-|-|-|-|
+|Idle|1|0%|20%|2.5W|
+|Idle|8|0%|20%|20W|
 |PyTorch|1|20-80%|50%|4W|
 |PyTorch|8|30-90%|70%|36W|
 |TensorFlow|1|100%|20%|6.5W|
